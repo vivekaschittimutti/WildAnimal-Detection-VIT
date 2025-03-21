@@ -1,91 +1,112 @@
 import cv2
+import torch
 import numpy as np
 from PIL import Image
-import winsound  # For audio alert (Windows systems only)
+import winsound  # Windows-only for sound alert
+from torchvision import transforms
 
-# List of classes that trigger an alert
-ALERT_CLASSES = ["Tiger","Lion","Jaguar","Cheetah","Leopard"]  # Replace with actual class names that require alerts
+# Device Configuration (Use GPU if available)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Function to capture image from the system camera
-def capture_image_from_camera():
-    cap = cv2.VideoCapture(0)  # Open the default camera
+# ✅ Wild animals that require an alert
+WILD_ANIMALS = {
+    "Tiger", "Lion", "Leopard", "Bear", "Wolf", "Fox", "Coyote", "Hippopotamus",
+    "Hyena", "Elephant", "Rhinoceros", "Jaguar", "Panther"
+}
 
+# ✅ Class indices based on dataset (update if needed)
+CLASS_INDICES = [
+    "Antelope", "Badger", "Bat", "Bear", "Bee", "Beetle", "Bison", "Boar", "Butterfly", "Cat",
+    "Caterpillar", "Chimpanzee", "Cockroach", "Cow", "Coyote", "Crab", "Crow", "Deer", "Dog", "Dolphin",
+    "Donkey", "Dragonfly", "Duck", "Eagle", "Elephant", "Flamingo", "Fly", "Fox", "Goat", "Goldfish",
+    "Goose", "Gorilla", "Grasshopper", "Hamster", "Hare", "Hedgehog", "Hippopotamus", "Hornbill", "Horse", "Hummingbird",
+    "Hyena", "Jellyfish", "Kangaroo", "Koala", "Ladybugs", "Leopard", "Lion", "Lizard", "Lobster", "Mosquito",
+    "Moth", "Mouse", "Octopus", "Okapi", "Orangutan", "Otter", "Owl", "Ox", "Oyster", "Panda",
+    "Parrot", "Pelecaniformes", "Penguin", "Pig", "Pigeon", "Porcupine", "Possum", "Raccoon", "Rat", "Reindeer",
+    "Rhinoceros", "Sandpiper", "Seahorse", "Seal", "Shark", "Sheep", "Snake", "Sparrow", "Squid", "Squirrel",
+    "Starfish", "Swan", "Tiger", "Turkey", "Turtle", "Whale", "Wolf", "Wombat", "Woodpecker", "Zebra"
+]
+
+# ✅ Define Image Transformation Pipeline
+transform = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize((224, 224)),  # Resize to ViT input size
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+
+# ✅ Load Pre-trained ViT Model (Ensure it's the trained model)
+vit_model.to(device)
+vit_model.eval()
+
+# 🚀 Function to Predict Animal from Image
+def predict_animal(image):
+    image_tensor = transform(image).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        outputs = vit_model(image_tensor)  # Direct model output
+        
+        # Handle cases where the model returns raw tensor
+        if isinstance(outputs, torch.Tensor):
+            outputs = outputs  # Use directly
+        else:
+            outputs = outputs.logits  # Extract logits if available
+
+        predicted_idx = torch.argmax(outputs, dim=1).item()
+
+    predicted_label = CLASS_INDICES[predicted_idx]
+    return predicted_label
+
+# 🚨 Function to Issue Alert for Wild Animals
+def issue_alert(animal_name):
+    if animal_name in WILD_ANIMALS:
+        print(f"🚨 ALERT: {animal_name} detected! Stay safe! 🚨")
+        winsound.Beep(1000, 500)  # Beep sound (Windows only)
+    else:
+        print(f"✅ No threat detected. Animal: {animal_name}")
+
+# 🎥 OpenCV Live Camera Feed for Animal Detection
+def live_animal_detection():
+    cap = cv2.VideoCapture(0)  # Open the camera
+    
     if not cap.isOpened():
-        print("Error: Camera could not be opened.")
-        return None
+        print("Error: Camera not accessible.")
+        return
 
-    print("Press 's' to capture an image, or 'q' to quit.")
+    print("📸 Press 's' to capture an image, 'q' to quit.")
+
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Failed to grab frame.")
             break
 
-        cv2.imshow("Camera", frame)
+        # Show the camera feed
+        cv2.imshow("Wild Animal Detection - Press 's' to Capture", frame)
 
+        # Wait for the 's' key to capture an image
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('s'):  # Press 's' to save the frame
-            cap.release()
-            cv2.destroyAllWindows()
-            return frame
-        elif key == ord('q'):  # Press 'q' to quit
+        if key == ord('s'):
+            # 🧠 Predict the animal in the captured frame
+            predicted_animal = predict_animal(frame)
+
+            # 🚨 Issue Alert if the detected animal is wild
+            issue_alert(predicted_animal)
+
+            # 🏷️ Display the prediction on the frame
+            cv2.putText(frame, f"Animal: {predicted_animal}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            # Show the captured frame with prediction
+            cv2.imshow("Captured Frame with Prediction", frame)
+            cv2.waitKey(0)  # Wait for key press to close the frame
+
+        # Press 'q' to exit
+        elif key == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
-    return None
 
-# Function to preprocess the captured image for the model
-def preprocess_image(image):
-    # Convert BGR (OpenCV format) to RGB
-    img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    
-    # Convert the NumPy array to a PIL Image
-    pil_img = Image.fromarray(img)
-    
-    # Apply the transform
-    img_tensor = transform(pil_img).unsqueeze(0)  # Apply transform and add batch dimension
-    return img_tensor.to(device)
-
-# Function to make predictions
-def predict_image(model, image_tensor):
-    model.eval()
-    with torch.no_grad():
-        outputs = model(image_tensor).logits
-        predicted_class = torch.argmax(outputs, dim=1).item()
-
-        class_indices = {v: k for k, v in train_generator.class_indices.items()}  # Reverse the class indices
-        predicted_label = class_indices[predicted_class]
-        return predicted_label
-
-# Function to issue an alert
-def issue_alert(predicted_label):
-    if predicted_label in ALERT_CLASSES:
-        print(f"ALERT: {predicted_label} detected!")
-        
-        # Play a sound alert (optional, Windows-specific)
-        winsound.Beep(1000, 500)  # Beep sound with frequency and duration
-        
-        # Additional actions like sending a notification can be added here
-    else:
-        print(f"No alert. Detected: {predicted_label}")
-
-# Capture an image from the camera
-captured_frame = capture_image_from_camera()
-
-if captured_frame is not None:
-    # Preprocess the image
-    image_tensor = preprocess_image(captured_frame)
-
-    # Predict the class
-    prediction = predict_image(vit_model, image_tensor)
-    print(f"Predicted Class: {prediction}")
-
-    # Issue an alert if necessary
-    issue_alert(prediction)
-
-    # Display the captured frame with the prediction
-    cv2.putText(captured_frame, f"Prediction: {prediction}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-    cv2.imshow("Captured Image", captured_frame)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+# 🚀 Run the Live Detection System
+live_animal_detection()
