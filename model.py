@@ -11,17 +11,17 @@ from io import BytesIO
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
-zip_path = os.path.join(os.getcwd(), 'archive.zip')
+zip_path = os.path.join(os.getcwd(), 'archive (1).zip')
 
 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-    zip_ref.extractall("dataset")
+    zip_ref.extractall("dataset1")
 
-data_dir = "dataset/Animals"
+data_dir = "dataset1/animals/animals"
 
 
 IMG_SIZE = 224  
 BATCH_SIZE = 32
-EPOCHS = 10
+EPOCHS = 30
 
 datagen = ImageDataGenerator(
     rescale=1.0/255.0,  
