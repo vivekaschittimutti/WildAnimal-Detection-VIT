@@ -1,0 +1,13 @@
+import os
+print(os.getcwd())
+
+zip_path = os.path.join(os.getcwd(), 'archive (1).zip')
+
+import zipfile
+
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall("dataset1")
+    
+data_dir = "dataset1/animals/animals"
+
+dataset link - https://www.kaggle.com/datasets/iamsouravbanerjee/animal-image-dataset-90-different-animals
